@@ -1,4 +1,4 @@
-FROM ghcr.io/linuxserver/baseimage-selkies:ubunturesolute
+FROM ghcr.io/linuxserver/baseimage-selkies:ubuntunoble
 
 # set version label
 ARG BUILD_DATE
@@ -9,8 +9,7 @@ ARG DEBIAN_FRONTEND="noninteractive"
 
 # title
 ENV TITLE="Ubuntu KDE" \
-    NO_GAMEPAD=true \
-    PIXELFLUX_WAYLAND=true
+    NO_GAMEPAD=true
 
 RUN \
   echo "**** add icon ****" && \
@@ -22,7 +21,6 @@ RUN \
   apt-get update && \
   DEBIAN_FRONTEND=noninteractive \
   apt-get install --no-install-recommends -y \
-    cargo \
     chromium \
     dolphin \
     gwenview \
@@ -36,6 +34,7 @@ RUN \
     ksystemstats \
     kubuntu-settings-desktop \
     kubuntu-wallpapers \
+    kubuntu-web-shortcuts \
     kwin-addons \
     kwin-x11 \
     kwrite \
@@ -43,24 +42,18 @@ RUN \
     plasma-workspace \
     qml-module-qt-labs-platform \
     systemsettings && \
-  cargo install \
-    wl-clipboard-rs-tools && \
-  echo "**** replace wl-clipboard with rust ****" && \
-  mv \
-    /config/.cargo/bin/wl-* \
-    /usr/bin/ && \
   echo "**** application tweaks ****" && \
   sed -i \
     's#^Exec=.*#Exec=/usr/local/bin/wrapped-chromium#g' \
     /usr/share/applications/chromium.desktop && \
   echo "**** kde tweaks ****" && \
-  setcap -r \
-    /usr/bin/kwin_wayland && \
+  sed -i \
+    's/applications:org.kde.discover.desktop,/applications:org.kde.konsole.desktop,/g' \
+    /usr/share/plasma/plasmoids/org.kde.plasma.taskmanager/contents/config/main.xml && \
   echo "**** cleanup ****" && \
   apt-get autoclean && \
   rm -rf \
     /config/.cache \
-    /config/.cargo \
     /config/.launchpadlib \
     /var/lib/apt/lists/* \
     /var/tmp/* \
@@ -70,5 +63,5 @@ RUN \
 COPY /root /
 
 # ports and volumes
-EXPOSE 3001
+EXPOSE 3000
 VOLUME /config
