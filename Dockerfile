@@ -59,6 +59,53 @@ RUN \
     /var/tmp/* \
     /tmp/*
 
+# ==== custom packages ====
+ENV SAL_USE_VCLPLUGIN=qt5
+RUN \
+  echo "**** add microsoft repo for vscode ****" && \
+  curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
+    | gpg --dearmor -o /usr/share/keyrings/packages.microsoft.gpg && \
+  echo "deb [arch=amd64 signed-by=/usr/share/keyrings/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" \
+    > /etc/apt/sources.list.d/vscode.list && \
+  echo "**** add mozilla ppa for thunderbird (avoid snap shim) ****" && \
+  add-apt-repository -y ppa:mozillateam/ppa && \
+  printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001\n' \
+    > /etc/apt/preferences.d/mozilla-ppa && \
+  echo "**** install custom apps ****" && \
+  apt-get update && \
+  DEBIAN_FRONTEND=noninteractive \
+  apt-get install --no-install-recommends -y \
+    adwaita-icon-theme \
+    breeze-icon-theme \
+    code \
+    fonts-liberation \
+    fonts-noto-cjk \
+    fonts-noto-color-emoji \
+    fonts-noto-core \
+    gimp \
+    gimp-data-extras \
+    gtk2-engines-pixbuf \
+    hicolor-icon-theme \
+    libaa1 \
+    libqt6svg6 \
+    librsvg2-common \
+    libwmf-0.2-7 \
+    mypaint-brushes \
+    libreoffice-calc \
+    libreoffice-impress \
+    libreoffice-qt5 \
+    libreoffice-style-breeze \
+    libreoffice-writer \
+    thunderbird \
+    vlc && \
+  echo "**** cleanup ****" && \
+  apt-get autoclean && \
+  rm -rf \
+    /var/lib/apt/lists/* \
+    /var/tmp/* \
+    /tmp/*
+# ==== end custom packages ====
+
 # add local files
 COPY /root /
 
