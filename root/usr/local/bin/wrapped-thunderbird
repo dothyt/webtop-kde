@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# wrapped-thunderbird: env shim so podman+CRIU can dump+restore
+# thunderbird. Disables mozilla content-process sandboxes so the
+# children don't unshare(CLONE_NEWUSER) — the deferred-userns
+# helper in this branch's CRIU mishandles the resulting nested
+# (HOST -> container -> content) userns chain. Trade-off: weakens
+# thunderbird's defense in depth. Fine for the C/R lab; do not
+# copy to production.
+#
+# See end2end-checkpoints/THUNDERBIRD_DUMP_RESTORE.md.
+#
+export MOZ_DISABLE_CONTENT_SANDBOX=1
+export MOZ_DISABLE_RDD_SANDBOX=1
+export MOZ_DISABLE_GMP_SANDBOX=1
+export MOZ_DISABLE_SOCKET_PROCESS_SANDBOX=1
+export MOZ_DISABLE_UTILITY_SANDBOX=1
+exec /usr/bin/thunderbird "$@"

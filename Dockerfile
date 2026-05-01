@@ -11,6 +11,13 @@ ARG DEBIAN_FRONTEND="noninteractive"
 ENV TITLE="Ubuntu KDE" \
     NO_GAMEPAD=true
 
+# Disable libuv io_uring backend container-wide so VSCode's bundled
+# Electron/Node runtime (and anything else libuv-based) falls back to
+# epoll. CRIU can't dump anon_inode:[io_uring] fds, so leaving this on
+# breaks checkpoint of any process that ends up using the io_uring path
+# (libuv >=1.49 enables it by default for fs ops).
+ENV UV_USE_IO_URING=0
+
 RUN \
   echo "**** add icon ****" && \
   curl -o \
@@ -98,6 +105,13 @@ RUN \
     libreoffice-writer \
     thunderbird \
     vlc && \
+  echo "**** wire up CRIU-friendly wrappers for vscode + thunderbird ****" && \
+  sed -i \
+    's#^Exec=/usr/share/code/code#Exec=/usr/local/bin/wrapped-code#g' \
+    /usr/share/applications/code.desktop && \
+  sed -i \
+    's#^Exec=thunderbird #Exec=/usr/local/bin/wrapped-thunderbird #g' \
+    /usr/share/applications/thunderbird.desktop && \
   echo "**** cleanup ****" && \
   apt-get autoclean && \
   rm -rf \

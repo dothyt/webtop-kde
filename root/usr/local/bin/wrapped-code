@@ -1,0 +1,18 @@
+#!/bin/bash
+#
+# wrapped-code: env+flag shim so podman+CRIU can dump+restore vscode.
+# CRIU does not support anon_inode:[io_uring] fds, and Electron's
+# bundled libuv (>=1.49) opens them at startup. The env var path is
+# intermittent in this Electron build — UV_USE_IO_URING=0 alone is
+# not enough. The reliable lever is the host sysctl
+# kernel.io_uring_disabled=2 (set on the host before launching the
+# container), but we keep the env+flag shim in place so that any
+# software path that DOES honor them still benefits.
+#
+# See end2end-checkpoints/VSCODE_DUMP_RESTORE.md.
+#
+export UV_USE_IO_URING=0
+exec /usr/share/code/code \
+    --disable-features=IOUring,IoUring \
+    --password-store=basic \
+    "$@"
