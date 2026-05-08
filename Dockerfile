@@ -122,32 +122,38 @@ RUN \
 
 # ==== pyautogui for the bench (Agent-S / OSWorld actions) ====
 # The bench runs `python3 -c <pyautogui code>` inside the container
-# from osworld_run_branch's action exec; without these the click
-# fails with ModuleNotFoundError and screenshots are byte-identical
-# across rounds (the action becomes a silent no-op).
+# from osworld_run_branch's action exec for screenshots + clicks.
 #
-# pyautogui's package init imports `mouseinfo`, which imports tkinter.
-# Pulling python3-tk would add ~50MB and a tk thread to the dump tree
-# that the bench never uses — stub mouseinfo via sitecustomize.py
-# (loaded automatically on every python startup) so `from mouseinfo
-# import MouseInfoWindow` resolves to an empty module. The class is
-# only used if pyautogui.mouseInfo() is called, which the bench never
-# does.
+# Required:
+#   python3-pip               install pyautogui + Pillow from PyPI
+#   python3-xlib              X11 client lib pyautogui uses
+#   python3-tk                tkinter — pyautogui's `mouseinfo`
+#                             dependency imports it at module load.
+#                             Earlier attempts to stub mouseinfo via
+#                             sitecustomize.py or inline-prepended
+#                             code were brittle (mouseinfo exports
+#                             several names, and pyautogui imports
+#                             them at __init__ time). Just shipping
+#                             real tkinter (~50MB) is more reliable.
+#   scrot                     used by PIL.ImageGrab as one of the
+#                             screenshot backends
+#   x11-utils                 provides xdpyinfo, used by the bench's
+#                             source_ready_probe
+#   xdotool                   pyautogui sometimes uses it for
+#                             keyboard/mouse fallbacks
 RUN \
   apt-get update && \
   DEBIAN_FRONTEND=noninteractive \
   apt-get install --no-install-recommends -y \
     python3-pip \
+    python3-tk \
     python3-xlib \
-    scrot && \
+    scrot \
+    x11-utils \
+    xdotool && \
   pip install --no-cache-dir --break-system-packages \
     pyautogui \
     Pillow && \
-  printf '%s\n' \
-    'import sys, types' \
-    'if "mouseinfo" not in sys.modules:' \
-    '    sys.modules["mouseinfo"] = types.ModuleType("mouseinfo")' \
-    > /usr/lib/python3/dist-packages/sitecustomize.py && \
   apt-get autoclean && \
   rm -rf \
     /var/lib/apt/lists/* \
