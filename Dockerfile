@@ -120,40 +120,20 @@ RUN \
     /tmp/*
 # ==== end custom packages ====
 
-# ==== ydotool for the bench (Agent-S / OSWorld actions) ====
-# pyautogui imports tkinter and uses XTest, which is broken under
-# Selkies/Wayland and made cursor capture flaky. We replace pyautogui
-# with a thin shim (root/usr/lib/python3/dist-packages/pyautogui.py)
-# that drives ydotool — uinput-based, works under both X11 and
-# Wayland. ydotoold daemon is started by /custom-cont-init.d/20-ydotoold.
-# Container must be run with --device /dev/uinput.
-#
-# Ubuntu noble's apt ydotool is 0.1.8 (pre-daemon, different CLI).
-# Build the modern 1.x release from source so we get ydotoold + the
-# CLI surface the shim assumes.
-ARG YDOTOOL_REF=v1.0.4
+# ==== xdotool for the bench (Agent-S / OSWorld actions) ====
+# pyautogui imports tkinter (~50MB) and the bench's stub workarounds
+# were brittle. The image runs kwin_x11 + Xvfb (an X11 session, not
+# Wayland), so we replace pyautogui with a tiny shim
+# (root/usr/lib/python3/dist-packages/pyautogui.py) that drives
+# xdotool. xdotool talks to the X server via XTest — needs no
+# /dev/uinput, no daemon, no device passthrough.
 RUN \
   apt-get update && \
   DEBIAN_FRONTEND=noninteractive \
   apt-get install --no-install-recommends -y \
-    build-essential \
-    cmake \
-    git \
-    scdoc && \
-  git clone --depth 1 --branch "${YDOTOOL_REF}" \
-    https://github.com/ReimuNotMoe/ydotool.git /tmp/ydotool && \
-  cmake -S /tmp/ydotool -B /tmp/ydotool/build \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr/local && \
-  cmake --build /tmp/ydotool/build -j "$(nproc)" && \
-  cmake --install /tmp/ydotool/build && \
-  apt-get purge -y --auto-remove \
-    build-essential \
-    cmake \
-    git \
-    scdoc && \
+    xdotool && \
   apt-get autoclean && \
-  rm -rf /tmp/ydotool /var/lib/apt/lists/* /var/tmp/* /tmp/*
+  rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/*
 
 # ==== seed desktop shortcuts (mimics common Ubuntu VM layout) ====
 # /config is a VOLUME, so anything we write at build time is shadowed
