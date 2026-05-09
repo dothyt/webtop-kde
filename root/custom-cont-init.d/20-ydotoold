@@ -1,0 +1,15 @@
+#!/usr/bin/with-contenv bash
+# Start ydotoold daemon. Requires container to be run with
+# --device /dev/uinput (otherwise daemon will fail and any input
+# subprocess from the pyautogui shim will error).
+SOCK=/tmp/.ydotool_socket
+if [ ! -S "$SOCK" ]; then
+  ydotoold --socket-path "$SOCK" --socket-perm 0666 \
+    >/var/log/ydotoold.log 2>&1 &
+  # Wait briefly for socket to appear so first user call doesn't race.
+  for _ in $(seq 1 20); do
+    [ -S "$SOCK" ] && break
+    sleep 0.1
+  done
+fi
+chmod 0666 "$SOCK" 2>/dev/null || true

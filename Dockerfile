@@ -120,46 +120,45 @@ RUN \
     /tmp/*
 # ==== end custom packages ====
 
-# ==== pyautogui for the bench (Agent-S / OSWorld actions) ====
-# The bench runs `python3 -c <pyautogui code>` inside the container
-# from osworld_run_branch's action exec for screenshots + clicks.
-#
-# Required:
-#   python3-pip               install pyautogui + Pillow from PyPI
-#   python3-xlib              X11 client lib pyautogui uses
-#   python3-tk                tkinter — pyautogui's `mouseinfo`
-#                             dependency imports it at module load.
-#                             Earlier attempts to stub mouseinfo via
-#                             sitecustomize.py or inline-prepended
-#                             code were brittle (mouseinfo exports
-#                             several names, and pyautogui imports
-#                             them at __init__ time). Just shipping
-#                             real tkinter (~50MB) is more reliable.
-#   scrot                     used by PIL.ImageGrab as one of the
-#                             screenshot backends
-#   x11-utils                 provides xdpyinfo, used by the bench's
-#                             source_ready_probe
-#   xdotool                   pyautogui sometimes uses it for
-#                             keyboard/mouse fallbacks
+# ==== ydotool for the bench (Agent-S / OSWorld actions) ====
+# pyautogui imports tkinter and uses XTest, which is broken under
+# Selkies/Wayland and made cursor capture flaky. We replace pyautogui
+# with a thin shim (root/usr/lib/python3/dist-packages/pyautogui.py)
+# that drives ydotool — uinput-based, works under both X11 and
+# Wayland. ydotoold daemon is started by /custom-cont-init.d/20-ydotoold.
+# Container must be run with --device /dev/uinput.
 RUN \
   apt-get update && \
   DEBIAN_FRONTEND=noninteractive \
   apt-get install --no-install-recommends -y \
-    python3-pip \
-    python3-tk \
-    python3-xlib \
-    scrot \
-    x11-utils \
-    xdotool && \
-  pip install --no-cache-dir --break-system-packages \
-    pyautogui \
-    Pillow && \
+    ydotool && \
   apt-get autoclean && \
-  rm -rf \
-    /var/lib/apt/lists/* \
-    /var/tmp/* \
-    /tmp/* \
-    /root/.cache
+  rm -rf /var/lib/apt/lists/* /var/tmp/* /tmp/*
+
+# ==== seed desktop shortcuts (mimics common Ubuntu VM layout) ====
+# /config is a VOLUME, so anything we write at build time is shadowed
+# by user-mounted volumes. Drop a custom-cont-init.d script instead —
+# linuxserver's s6 stack runs everything in /custom-cont-init.d/ at
+# every boot, so the desktop is seeded into /config/Desktop after the
+# volume is mounted.
+RUN \
+  mkdir -p /custom-cont-init.d && \
+  printf '%s\n' \
+    '#!/usr/bin/with-contenv bash' \
+    'mkdir -p /config/Desktop' \
+    'for app in chromium code dolphin firefox gimp konsole \
+                libreoffice-calc libreoffice-impress libreoffice-writer \
+                org.kde.kwrite systemsettings thunderbird vlc; do' \
+    '  src="/usr/share/applications/${app}.desktop"' \
+    '  dst="/config/Desktop/${app}.desktop"' \
+    '  if [ -f "$src" ] && [ ! -f "$dst" ]; then' \
+    '    cp "$src" "$dst"' \
+    '    chmod +x "$dst"' \
+    '  fi' \
+    'done' \
+    'chown -R abc:abc /config/Desktop' \
+    > /custom-cont-init.d/10-seed-desktop && \
+  chmod +x /custom-cont-init.d/10-seed-desktop
 
 # add local files
 COPY /root /
