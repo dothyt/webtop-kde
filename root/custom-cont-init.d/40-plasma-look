@@ -36,14 +36,20 @@ set -euo pipefail
 
     # Wallpaper. Path:
     #   [Containments][1][Wallpaper][org.kde.image][General]/Image
-    # Prefer the Noble jellyfish if installed (ubuntu-wallpapers-noble),
-    # else fall back to the Ubuntu default symlink, else the Kubuntu
-    # default if even that's missing (rare).
+    # Prefer Jammy's purple jellyfish (ubuntu-wallpapers-jammy) — that's
+    # the visual the OSWorld VM agents were prompted against. Fall
+    # back to the Noble Numbat wallpaper (closest aesthetic match,
+    # also Ubuntu purple) if jammy isn't installed; then the generic
+    # Ubuntu default symlink as a last resort. Skip the Kubuntu
+    # default explicitly (cogs / kubuntu logo) — that's the wrong
+    # visual for an OSWorld bench.
     for cand in \
-        /usr/share/backgrounds/Mantic-Mascot-light.jpg \
-        /usr/share/backgrounds/Mantic-Mascot-dark.jpg \
+        /usr/share/backgrounds/jammy-jellyfish-wallpaper.png \
+        /usr/share/backgrounds/Jammy_Jellyfish_Light_by_Sylvain_Boyer_remixed_with_Ubuntu_22.04_LTS_Jellyfish_logo_2840x2160_l.png \
+        /usr/share/backgrounds/Jammy_Jellyfish_Wallpaper.png \
+        /usr/share/backgrounds/Numbat_wallpaper_light_3480x2160.png \
+        /usr/share/backgrounds/Numbat_wallpaper_dimmed_3480x2160.png \
         /usr/share/backgrounds/warty-final-ubuntu.png \
-        /usr/share/backgrounds/Ubuntu_Hello_Devs_Sketch_by_Vincent_Cologne.jpg \
         ; do
         if [ -e "$cand" ]; then
             WALLPAPER="$cand"
