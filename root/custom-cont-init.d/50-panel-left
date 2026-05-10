@@ -1,6 +1,0 @@
-#!/usr/bin/with-contenv bash
-# Same story as 40-plasma-look: this script's panel mutations from
-# cont-init.d raced plasma's startup write and corrupted the panel
-# layout (top + bottom panels appeared, vertical panel went empty).
-# Replaced by /etc/xdg/autostart/os4agent-plasma-fixup.desktop.
-exit 0

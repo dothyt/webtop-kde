@@ -1,0 +1,26 @@
+#!/usr/bin/with-contenv bash
+# Extract the captured os4agent plasma config tarball into /config/.config
+# before the user session starts. Plasma reads our files as if they were
+# its own first-run state, so the panel position / wallpaper / sortMode /
+# pinned launchers all land correctly without kwriteconfig5 races or
+# plasmashell-restart fragility.
+#
+# /config is tmpfs in the bench launch flags, so this runs every fresh
+# container start and gives plasma the same baseline every time.
+#
+# To re-capture after iterating layout in the GUI:
+#   sudo podman exec <container> tar -C /config -czf - \
+#       .config/plasma-org.kde.plasma.desktop-appletsrc \
+#       .config/kwinrc .config/kwinrulesrc .config/kdeglobals \
+#       .config/plasmarc .config/plasmashellrc .config/kscreenlockerrc \
+#     > ubuntu-img/root/etc/skel-os4agent/plasma.tar.gz
+# then commit + push.
+
+set -euo pipefail
+
+SRC=/etc/skel-os4agent/plasma.tar.gz
+[ -f "$SRC" ] || exit 0
+
+mkdir -p /config/.config
+tar -xzf "$SRC" -C /config
+chown -R abc:abc /config/.config
