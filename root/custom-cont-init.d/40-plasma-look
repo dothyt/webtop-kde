@@ -1,81 +1,11 @@
 #!/usr/bin/with-contenv bash
-# Make the desktop visually closer to the OSWorld Ubuntu VM agents
-# expect: Ubuntu's default wallpaper + apps clustered in the top
-# rows, files in subsequent rows. See sibling 50-panel-left for
-# the panel-position half.
+# This script used to apply wallpaper + sortMode via kwriteconfig5 from
+# cont-init.d (with a background waiter for plasmashell). That approach
+# raced plasma's first-run config write — the partial mutations either
+# got clobbered or confused plasma into spawning fresh default panels.
 #
-# Timing: cont-init.d fires BEFORE the user session, so plasmashell
-# hasn't written its initial appletsrc yet (and writing one ourselves
-# without the [Containments][N] hierarchy plasma populates would
-# write our keys in the wrong place). Spawn a background waiter
-# that watches for plasmashell to come up + finish first-run, then
-# kwriteconfig5 + nudge plasma to reload. The init script itself
-# returns immediately so we don't block the rest of cont-init.d.
-
-set -euo pipefail
-
-(
-    CONF=/config/.config/plasma-org.kde.plasma.desktop-appletsrc
-
-    # Wait for plasmashell to be running. 90s deadline: plasma cold-
-    # start on a fresh tmpfs is usually 15-30s but slow hosts can hit 60.
-    deadline=$(($(date +%s) + 90))
-    while [ "$(date +%s)" -lt "$deadline" ]; do
-        if pgrep -u abc -x plasmashell >/dev/null 2>&1 \
-                && [ -f "$CONF" ]; then
-            break
-        fi
-        sleep 1
-    done
-    # Give plasma a moment to finish its first-run config flush —
-    # mutating mid-write would race and our values get clobbered
-    # when plasma's QSettings auto-saves.
-    sleep 4
-
-    [ -f "$CONF" ] || exit 0
-
-    # Wallpaper. Path:
-    #   [Containments][1][Wallpaper][org.kde.image][General]/Image
-    # Prefer Jammy's purple jellyfish (ubuntu-wallpapers-jammy) — that's
-    # the visual the OSWorld VM agents were prompted against. Fall
-    # back to the Noble Numbat wallpaper (closest aesthetic match,
-    # also Ubuntu purple) if jammy isn't installed; then the generic
-    # Ubuntu default symlink as a last resort. Skip the Kubuntu
-    # default explicitly (cogs / kubuntu logo) — that's the wrong
-    # visual for an OSWorld bench.
-    for cand in \
-        /usr/share/backgrounds/jammy-jellyfish-wallpaper.png \
-        /usr/share/backgrounds/Jammy_Jellyfish_Light_by_Sylvain_Boyer_remixed_with_Ubuntu_22.04_LTS_Jellyfish_logo_2840x2160_l.png \
-        /usr/share/backgrounds/Jammy_Jellyfish_Wallpaper.png \
-        /usr/share/backgrounds/Numbat_wallpaper_light_3480x2160.png \
-        /usr/share/backgrounds/Numbat_wallpaper_dimmed_3480x2160.png \
-        /usr/share/backgrounds/warty-final-ubuntu.png \
-        ; do
-        if [ -e "$cand" ]; then
-            WALLPAPER="$cand"
-            break
-        fi
-    done
-    if [ -n "${WALLPAPER:-}" ]; then
-        runuser -u abc -- kwriteconfig5 \
-            --file "$CONF" \
-            --group Containments --group 1 --group Wallpaper \
-            --group org.kde.image --group General \
-            --key Image "file://$WALLPAPER" || true
-    fi
-
-    # sortMode=3 (Type) on the desktop containment, so spec drops
-    # cluster separately from the launcher .desktop files.
-    runuser -u abc -- kwriteconfig5 \
-        --file "$CONF" \
-        --group Containments --group 1 --group General \
-        --key sortMode 3 || true
-
-    # Tell plasma to pick up the new keys without a full restart.
-    # Best-effort — failure here is fine, the values land on disk
-    # either way and the next plasmashell start reads them.
-    runuser -u abc -- env DISPLAY=:1 dbus-launch --exit-with-session \
-        qdbus org.kde.plasmashell /PlasmaShell evaluateScript \
-        'for (var i in desktops()) { desktops()[i].reloadConfig(); }' \
-        >/dev/null 2>&1 || true
-) &
+# Replaced by /etc/xdg/autostart/os4agent-plasma-fixup.desktop, which
+# runs in the user session AFTER plasma is up. Kept this file as an
+# explicit no-op so it's clear from `ls /custom-cont-init.d/` that
+# nothing here fires anymore.
+exit 0

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=os4agent plasma fixup
+Comment=One-shot wallpaper + panel + sort + launcher pinning at session start
+Exec=/usr/local/bin/os4agent-plasma-fixup
+OnlyShowIn=KDE;
+X-KDE-StartupNotify=false
+NoDisplay=true
+Terminal=false

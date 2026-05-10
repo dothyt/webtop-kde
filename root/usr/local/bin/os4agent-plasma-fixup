@@ -1,0 +1,130 @@
+#!/bin/bash
+# Apply OSWorld-bench plasma tweaks: wallpaper, sort-by-type, panel
+# moved to left edge with thicker icons and our app launchers pinned.
+#
+# Run as `abc` from /etc/xdg/autostart on KDE login. Plasma has already
+# started and written its default config by the time autostart entries
+# fire, so we're modifying a known-good baseline rather than racing
+# plasmashell's first-run write (which is what the cont-init.d
+# approach was doing — and losing every time).
+#
+# Idempotent within a session via /tmp sentinel. /config and /tmp are
+# both tmpfs in the bench launch flags, so on every fresh container
+# start plasma rewrites defaults AND we re-apply tweaks.
+
+set -euo pipefail
+
+CONF="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+SENTINEL=/tmp/os4agent-plasma-fixup.done
+
+[ -f "$SENTINEL" ] && exit 0
+
+# Wait for plasmashell to be running. If autostart fires too early the
+# config file may exist but plasma is mid-write; sleep covers the race.
+deadline=$(($(date +%s) + 60))
+while [ "$(date +%s)" -lt "$deadline" ]; do
+    if pgrep -x plasmashell >/dev/null 2>&1 && [ -f "$CONF" ]; then
+        break
+    fi
+    sleep 1
+done
+sleep 2
+
+[ -f "$CONF" ] || exit 0
+
+# ── 1. Wallpaper ──────────────────────────────────────────────────────
+# Path: [Containments][1][Wallpaper][org.kde.image][General]/Image
+# Prefer Jammy jellyfish (the user's reference visual). Fall back to
+# Noble Numbat (also Ubuntu purple), then warty default symlink.
+WALLPAPER=""
+for cand in \
+    /usr/share/backgrounds/jammy-jellyfish-wallpaper.png \
+    /usr/share/backgrounds/Jammy_Jellyfish_Light_by_Sylvain_Boyer_remixed_with_Ubuntu_22.04_LTS_Jellyfish_logo_2840x2160_l.png \
+    /usr/share/backgrounds/Jammy_Jellyfish_Wallpaper.png \
+    /usr/share/backgrounds/Numbat_wallpaper_light_3480x2160.png \
+    /usr/share/backgrounds/Numbat_wallpaper_dimmed_3480x2160.png \
+    /usr/share/backgrounds/warty-final-ubuntu.png \
+    ; do
+    if [ -e "$cand" ]; then
+        WALLPAPER="$cand"
+        break
+    fi
+done
+if [ -n "$WALLPAPER" ]; then
+    kwriteconfig5 --file "$CONF" \
+        --group Containments --group 1 --group Wallpaper \
+        --group org.kde.image --group General \
+        --key Image "file://$WALLPAPER"
+fi
+
+# ── 2. Folder View sort by mime type ──────────────────────────────────
+# So spec drops (video/mp4) cluster separately from launcher .desktop
+# files (application/x-desktop) instead of interleaving alphabetically.
+kwriteconfig5 --file "$CONF" \
+    --group Containments --group 1 --group General \
+    --key sortMode 3
+
+# ── 3. Find panel containments ────────────────────────────────────────
+panel_ids=$(awk '
+  /^\[Containments\]\[/ {
+    cur = $0
+    sub(/^\[Containments\]\[/, "", cur)
+    sub(/\]$/, "", cur)
+  }
+  cur != "" && /^plugin=org\.kde\.panel$/ { print cur; cur = "" }
+' "$CONF")
+
+# ── 4. Move panel(s) to left edge + bump thickness ────────────────────
+# FormFactor: Vertical=3.  Location: LeftEdge=5.  Thickness: 64 (was ~44).
+for pid in $panel_ids; do
+    kwriteconfig5 --file "$CONF" \
+        --group Containments --group "$pid" \
+        --key formfactor 3 \
+        --key location 5 \
+        --key thickness 64
+done
+
+# ── 5. Pin launcher set on icontasks applet(s) inside the panel ───────
+LAUNCHERS=(
+    applications:chromium.desktop
+    applications:code.desktop
+    applications:vlc.desktop
+    applications:org.kde.kwrite.desktop
+    applications:libreoffice-writer.desktop
+    applications:libreoffice-calc.desktop
+    applications:libreoffice-impress.desktop
+    applications:gimp.desktop
+    applications:thunderbird.desktop
+    applications:systemsettings.desktop
+    applications:org.kde.dolphin.desktop
+    applications:org.kde.konsole.desktop
+)
+LAUNCHERS_CSV=$(IFS=,; echo "${LAUNCHERS[*]}")
+
+for pid in $panel_ids; do
+    applet_ids=$(awk -v pid="$pid" '
+      $0 ~ ("^\\[Containments\\]\\[" pid "\\]\\[Applets\\]\\[[0-9]+\\]$") {
+        cur = $0
+        sub("^\\[Containments\\]\\[" pid "\\]\\[Applets\\]\\[", "", cur)
+        sub(/\]$/, "", cur)
+      }
+      cur != "" && /^plugin=org\.kde\.plasma\.icontasks$/ { print cur; cur = "" }
+    ' "$CONF")
+    for aid in $applet_ids; do
+        kwriteconfig5 --file "$CONF" \
+            --group Containments --group "$pid" \
+            --group Applets --group "$aid" \
+            --group Configuration --group General \
+            --key launchers "$LAUNCHERS_CSV"
+    done
+done
+
+# ── 6. Restart plasmashell so panel formfactor/location take effect ──
+# kquitapp5 stops the existing plasma cleanly; nohup re-launches with
+# the new config. Reload-via-dbus doesn't move panels; only a fresh
+# plasmashell reads the new formfactor.
+kquitapp5 plasmashell >/dev/null 2>&1 || true
+sleep 1
+nohup plasmashell >/dev/null 2>&1 &
+
+touch "$SENTINEL"
