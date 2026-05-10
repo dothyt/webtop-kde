@@ -1,54 +1,75 @@
 #!/usr/bin/with-contenv bash
 # Make the desktop visually closer to the OSWorld Ubuntu VM agents
-# expect: Ubuntu's default jellyfish wallpaper + apps clustered in
-# the top row, files in subsequent rows so a spec-dropped artifact
-# (e.g. Rick Astley.mp4) is visually distinct from the launcher
-# icons sitting next to it.
+# expect: Ubuntu's default wallpaper + apps clustered in the top
+# rows, files in subsequent rows. See sibling 50-panel-left for
+# the panel-position half.
 #
-# Two changes:
-#   1. Wallpaper → /usr/share/backgrounds/warty-final-ubuntu.png
-#      (the canonical "default Ubuntu wallpaper" symlink — points to
-#      whatever release the package ships, currently the 24.04 Noble
-#      jellyfish).
-#   2. Folder View sortMode → 3 (Type). Mime-type alphabetic order
-#      groups application/x-desktop launchers together in the top
-#      rows, then video/mp4, image/*, etc. fall into rows below.
-#      Without this, the alphabetic-by-name default interleaves
-#      "Rick Astley.mp4" between "LibreOffice Writer" and
-#      "System Settings" — visually identical to the launchers
-#      around it, which makes the agent's grounder less reliable.
-#
-# /config is tmpfs at runtime so this runs every container start.
-# Idempotent: writing the same key value twice is a no-op.
+# Timing: cont-init.d fires BEFORE the user session, so plasmashell
+# hasn't written its initial appletsrc yet (and writing one ourselves
+# without the [Containments][N] hierarchy plasma populates would
+# write our keys in the wrong place). Spawn a background waiter
+# that watches for plasmashell to come up + finish first-run, then
+# kwriteconfig5 + nudge plasma to reload. The init script itself
+# returns immediately so we don't block the rest of cont-init.d.
 
 set -euo pipefail
 
-CONF=/config/.config/plasma-org.kde.plasma.desktop-appletsrc
+(
+    CONF=/config/.config/plasma-org.kde.plasma.desktop-appletsrc
 
-# Defer if plasmashell hasn't done its first-run write yet — kwriteconfig5
-# can create the file but the layout it leaves behind is missing the
-# Containments hierarchy, so the values get written in the wrong place.
-if [ ! -f "$CONF" ]; then
-    exit 0
-fi
+    # Wait for plasmashell to be running. 90s deadline: plasma cold-
+    # start on a fresh tmpfs is usually 15-30s but slow hosts can hit 60.
+    deadline=$(($(date +%s) + 90))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        if pgrep -u abc -x plasmashell >/dev/null 2>&1 \
+                && [ -f "$CONF" ]; then
+            break
+        fi
+        sleep 1
+    done
+    # Give plasma a moment to finish its first-run config flush —
+    # mutating mid-write would race and our values get clobbered
+    # when plasma's QSettings auto-saves.
+    sleep 4
 
-# Wallpaper. The Wallpaper plugin path is:
-#   [Containments][1][Wallpaper][org.kde.image][General]/Image
-# warty-final-ubuntu.png is symlinked to whatever Ubuntu's current
-# default wallpaper is — points at the Noble jellyfish on 24.04.
-WALLPAPER=/usr/share/backgrounds/warty-final-ubuntu.png
-if [ -e "$WALLPAPER" ]; then
+    [ -f "$CONF" ] || exit 0
+
+    # Wallpaper. Path:
+    #   [Containments][1][Wallpaper][org.kde.image][General]/Image
+    # Prefer the Noble jellyfish if installed (ubuntu-wallpapers-noble),
+    # else fall back to the Ubuntu default symlink, else the Kubuntu
+    # default if even that's missing (rare).
+    for cand in \
+        /usr/share/backgrounds/Mantic-Mascot-light.jpg \
+        /usr/share/backgrounds/Mantic-Mascot-dark.jpg \
+        /usr/share/backgrounds/warty-final-ubuntu.png \
+        /usr/share/backgrounds/Ubuntu_Hello_Devs_Sketch_by_Vincent_Cologne.jpg \
+        ; do
+        if [ -e "$cand" ]; then
+            WALLPAPER="$cand"
+            break
+        fi
+    done
+    if [ -n "${WALLPAPER:-}" ]; then
+        runuser -u abc -- kwriteconfig5 \
+            --file "$CONF" \
+            --group Containments --group 1 --group Wallpaper \
+            --group org.kde.image --group General \
+            --key Image "file://$WALLPAPER" || true
+    fi
+
+    # sortMode=3 (Type) on the desktop containment, so spec drops
+    # cluster separately from the launcher .desktop files.
     runuser -u abc -- kwriteconfig5 \
         --file "$CONF" \
-        --group Containments --group 1 --group Wallpaper \
-        --group org.kde.image --group General \
-        --key Image "file://$WALLPAPER" || true
-fi
+        --group Containments --group 1 --group General \
+        --key sortMode 3 || true
 
-# sortMode=3 (Type) on the desktop containment. Plasma 5 stores the
-# Folder View config directly under the containment's General, not
-# under a child Applet (the desktop containment IS a Folder View).
-runuser -u abc -- kwriteconfig5 \
-    --file "$CONF" \
-    --group Containments --group 1 --group General \
-    --key sortMode 3 || true
+    # Tell plasma to pick up the new keys without a full restart.
+    # Best-effort — failure here is fine, the values land on disk
+    # either way and the next plasmashell start reads them.
+    runuser -u abc -- env DISPLAY=:1 dbus-launch --exit-with-session \
+        qdbus org.kde.plasmashell /PlasmaShell evaluateScript \
+        'for (var i in desktops()) { desktops()[i].reloadConfig(); }' \
+        >/dev/null 2>&1 || true
+) &

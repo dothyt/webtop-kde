@@ -1,52 +1,70 @@
 #!/usr/bin/with-contenv bash
-# Move webtop's existing bottom panel to the left edge — visually
-# closer to the GNOME OSWorld VM's Activities dash, and gets the
-# system tray + clock + Kickoff out of the agent's primary working
-# area (the desktop center / right where VLC and file dialogs live).
+# Move webtop's existing bottom panel(s) to the left edge — visually
+# closer to the OSWorld GNOME VM's Activities dash. We don't add a
+# new panel; we mutate the existing org.kde.panel containment(s)
+# from formfactor=Horizontal/location=BottomEdge to
+# formfactor=Vertical/location=LeftEdge.
 #
-# We don't add a new panel; we mutate the existing one's containment
-# in plasma-org.kde.plasma.desktop-appletsrc. Find the panel by
-# scanning for `plugin=org.kde.panel` (defensive: don't assume
-# Containment ID 2 is always the panel — Plasma renumbers when
-# new screens or virtual desktops are added).
-#
-# /config is tmpfs at runtime, so this re-runs each container start.
-# Idempotent: kwriteconfig5 writing the same value is a no-op.
+# Timing: same fix as 40-plasma-look. cont-init.d runs before the
+# user session, so plasma-org.kde.plasma.desktop-appletsrc doesn't
+# exist yet on a fresh /config tmpfs. Spawn a background waiter
+# that fires after plasmashell finishes its first-run config flush.
 
 set -euo pipefail
 
-CONF=/config/.config/plasma-org.kde.plasma.desktop-appletsrc
+(
+    CONF=/config/.config/plasma-org.kde.plasma.desktop-appletsrc
 
-# Defer if plasmashell hasn't done its first-run write yet.
-if [ ! -f "$CONF" ]; then
-    exit 0
-fi
+    deadline=$(($(date +%s) + 90))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+        if pgrep -u abc -x plasmashell >/dev/null 2>&1 \
+                && [ -f "$CONF" ]; then
+            break
+        fi
+        sleep 1
+    done
+    sleep 4   # let plasma flush its first-run config
 
-# Find the panel containment ID. mawk-compatible (no gawk-specific
-# match() second arg).
-PANEL_ID=$(awk '
-  /^\[Containments\]\[/ {
-    cur = $0
-    sub(/^\[Containments\]\[/, "", cur)
-    sub(/\]$/, "", cur)
-  }
-  cur != "" && /^plugin=org\.kde\.panel$/ { print cur; exit }
-' "$CONF")
+    [ -f "$CONF" ] || exit 0
 
-if [ -z "$PANEL_ID" ]; then
-    echo "[panel-left] no org.kde.panel containment found in $CONF" >&2
-    exit 0
-fi
+    # Find every panel containment (org.kde.panel). Webtop ships with
+    # one or two horizontal panels; mutate them all so we don't leave
+    # a stale bottom-edge panel co-existing with the new vertical one.
+    panel_ids=$(awk '
+      /^\[Containments\]\[/ {
+        cur = $0
+        sub(/^\[Containments\]\[/, "", cur)
+        sub(/\]$/, "", cur)
+      }
+      cur != "" && /^plugin=org\.kde\.panel$/ { print cur; cur = "" }
+    ' "$CONF")
 
-# Plasma::Types::FormFactor: Horizontal=2, Vertical=3
-# Plasma::Types::Location:   BottomEdge=4, LeftEdge=5
-runuser -u abc -- kwriteconfig5 \
-    --file "$CONF" \
-    --group Containments --group "$PANEL_ID" \
-    --key formfactor 3 \
-    --key location 5 || true
+    if [ -z "$panel_ids" ]; then
+        echo "[panel-left] no org.kde.panel containment in $CONF" >&2
+        exit 0
+    fi
 
-# Default visibility is "Always visible" already; no need to set
-# panelVisibility/panelHiding explicitly. If a future Plasma version
-# changes this default, add:
-#   --group Containments --group "$PANEL_ID" --key panelVisibility 0
+    # FormFactor: Horizontal=2 → Vertical=3
+    # Location:   BottomEdge=4 → LeftEdge=5
+    for pid in $panel_ids; do
+        runuser -u abc -- kwriteconfig5 \
+            --file "$CONF" \
+            --group Containments --group "$pid" \
+            --key formfactor 3 \
+            --key location 5 || true
+    done
+
+    runuser -u abc -- env DISPLAY=:1 dbus-launch --exit-with-session \
+        qdbus org.kde.plasmashell /PlasmaShell evaluateScript \
+        'for (var i in desktops()) { desktops()[i].reloadConfig(); }' \
+        >/dev/null 2>&1 || true
+
+    # Panel relocation needs a plasmashell restart to actually
+    # take effect — the live reloadConfig above doesn't move panels.
+    # Restart in-place; KWin keeps everything else.
+    runuser -u abc -- env DISPLAY=:1 \
+        kquitapp5 plasmashell >/dev/null 2>&1 || true
+    sleep 1
+    runuser -u abc -- env DISPLAY=:1 \
+        nohup plasmashell >/dev/null 2>&1 &
+) &
