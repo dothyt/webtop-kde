@@ -28,5 +28,36 @@ qt-error-dialogs=0
 [core]
 metadata-network-access=0
 EOF
-    chown -R abc:abc /config/.config
 fi
+
+# KWin window rule: pin VLC's main window to a small bottom-left
+# geometry on first creation. Without this, the spec's
+# `vlc --no-audio --no-video-title-show` ends up maximized on
+# 1920x1080 (KWin smart-placement decision; behaviour differs from
+# clicking the .desktop launcher because the argv is different),
+# which covers the desktop icons the agent needs to see and
+# forces it down a "VLC's file menu" rabbit hole. Pinning the
+# initial window size + position keeps the desktop visible.
+#
+# positionrule=2 + sizerule=2 = "Apply Initially": KWin sets these
+# on creation, then leaves the window alone for any later
+# user moves/resizes.
+KWINRULES=/config/.config/kwinrulesrc
+if [ ! -f "${KWINRULES}" ]; then
+    cat > "${KWINRULES}" <<'EOF'
+[General]
+count=1
+rules=os4agent-vlc
+
+[os4agent-vlc]
+Description=os4agent: pin VLC default size + position
+position=80,80
+positionrule=2
+size=640,400
+sizerule=2
+wmclass=vlc vlc
+wmclassmatch=1
+EOF
+fi
+
+chown -R abc:abc /config/.config
