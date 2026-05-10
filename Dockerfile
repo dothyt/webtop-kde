@@ -104,6 +104,7 @@ RUN \
     libreoffice-style-breeze \
     libreoffice-writer \
     thunderbird \
+    ubuntu-wallpapers \
     vlc && \
   echo "**** wire up CRIU-friendly wrappers for vscode + thunderbird ****" && \
   sed -i \

@@ -1,0 +1,54 @@
+#!/usr/bin/with-contenv bash
+# Make the desktop visually closer to the OSWorld Ubuntu VM agents
+# expect: Ubuntu's default jellyfish wallpaper + apps clustered in
+# the top row, files in subsequent rows so a spec-dropped artifact
+# (e.g. Rick Astley.mp4) is visually distinct from the launcher
+# icons sitting next to it.
+#
+# Two changes:
+#   1. Wallpaper → /usr/share/backgrounds/warty-final-ubuntu.png
+#      (the canonical "default Ubuntu wallpaper" symlink — points to
+#      whatever release the package ships, currently the 24.04 Noble
+#      jellyfish).
+#   2. Folder View sortMode → 3 (Type). Mime-type alphabetic order
+#      groups application/x-desktop launchers together in the top
+#      rows, then video/mp4, image/*, etc. fall into rows below.
+#      Without this, the alphabetic-by-name default interleaves
+#      "Rick Astley.mp4" between "LibreOffice Writer" and
+#      "System Settings" — visually identical to the launchers
+#      around it, which makes the agent's grounder less reliable.
+#
+# /config is tmpfs at runtime so this runs every container start.
+# Idempotent: writing the same key value twice is a no-op.
+
+set -euo pipefail
+
+CONF=/config/.config/plasma-org.kde.plasma.desktop-appletsrc
+
+# Defer if plasmashell hasn't done its first-run write yet — kwriteconfig5
+# can create the file but the layout it leaves behind is missing the
+# Containments hierarchy, so the values get written in the wrong place.
+if [ ! -f "$CONF" ]; then
+    exit 0
+fi
+
+# Wallpaper. The Wallpaper plugin path is:
+#   [Containments][1][Wallpaper][org.kde.image][General]/Image
+# warty-final-ubuntu.png is symlinked to whatever Ubuntu's current
+# default wallpaper is — points at the Noble jellyfish on 24.04.
+WALLPAPER=/usr/share/backgrounds/warty-final-ubuntu.png
+if [ -e "$WALLPAPER" ]; then
+    runuser -u abc -- kwriteconfig5 \
+        --file "$CONF" \
+        --group Containments --group 1 --group Wallpaper \
+        --group org.kde.image --group General \
+        --key Image "file://$WALLPAPER" || true
+fi
+
+# sortMode=3 (Type) on the desktop containment. Plasma 5 stores the
+# Folder View config directly under the containment's General, not
+# under a child Applet (the desktop containment IS a Folder View).
+runuser -u abc -- kwriteconfig5 \
+    --file "$CONF" \
+    --group Containments --group 1 --group General \
+    --key sortMode 3 || true
