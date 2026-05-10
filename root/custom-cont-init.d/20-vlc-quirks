@@ -1,0 +1,32 @@
+#!/usr/bin/with-contenv bash
+# Pre-seed VLC's per-user config so the first launch doesn't block on
+# the privacy/network prompt or pop the update-notification dialog.
+#
+# Why a runtime script: /config is mounted as tmpfs (--tmpfs /config)
+# by the bench's launch_source, so anything baked into /config at
+# image-build time gets shadowed. linuxserver's s6 init runs
+# /custom-cont-init.d/* before the user session starts; that's the
+# right hook for "lay down per-user defaults after the volume mount."
+#
+# Idempotent: only writes if vlcrc isn't already present, so a user
+# who customizes their /config/.config/vlc/vlcrc keeps their changes.
+
+set -euo pipefail
+
+VLC_DIR=/config/.config/vlc
+VLCRC=${VLC_DIR}/vlcrc
+
+if [ ! -f "${VLCRC}" ]; then
+    mkdir -p "${VLC_DIR}"
+    cat > "${VLCRC}" <<'EOF'
+[qt]
+qt-privacy-ask=0
+qt-recentplay=0
+qt-updates-notif=0
+qt-error-dialogs=0
+
+[core]
+metadata-network-access=0
+EOF
+    chown -R abc:abc /config/.config
+fi

@@ -112,6 +112,16 @@ RUN \
   sed -i \
     's#^Exec=thunderbird #Exec=/usr/local/bin/wrapped-thunderbird #g' \
     /usr/share/applications/thunderbird.desktop && \
+  echo "**** suppress autostarts that derail OSWorld tasks ****" && \
+  # Thunderbird's package ships /etc/xdg/autostart/thunderbird.desktop
+  # that fires on KDE login, then on first run pops the privacy
+  # notice + opens Chromium to its donation URL. Both steal focus
+  # from whatever the agent is doing. Drop the autostart entry but
+  # keep the desktop icon (10-seed-desktop still copies it to
+  # /config/Desktop), so Thunderbird-specific tasks still work — the
+  # agent just has to launch it explicitly.
+  rm -f /etc/xdg/autostart/thunderbird*.desktop \
+        /etc/xdg/autostart/org.mozilla.thunderbird*.desktop && \
   echo "**** cleanup ****" && \
   apt-get autoclean && \
   rm -rf \
