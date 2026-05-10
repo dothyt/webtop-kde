@@ -1,0 +1,15 @@
+[$Version]
+update_info=kwinrules.upd:replace-placement-string-to-enum,kwinrules.upd:use-virtual-desktop-ids
+
+[General]
+count=1
+rules=os4agent-vlc
+
+[os4agent-vlc]
+Description=os4agent: pin VLC default size + position
+position=80,80
+positionrule=2
+size=640,400
+sizerule=2
+wmclass=vlc vlc
+wmclassmatch=1
