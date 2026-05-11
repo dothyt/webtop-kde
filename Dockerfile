@@ -18,7 +18,22 @@ ENV TITLE="Ubuntu KDE" \
 # (libuv >=1.49 enables it by default for fs ops).
 ENV UV_USE_IO_URING=0
 
+# Force en_US.UTF-8 so Chromium picks up its full prepopulated search-
+# engine list (Google, Bing, Yahoo, DuckDuckGo, Ecosia). The base
+# image's C.UTF-8 default makes Chromium seed only DuckDuckGo, which
+# breaks agent flows like "set Bing as the default search engine".
+# Generated below in the apt install layer; declaring here so every
+# child process inherits it.
+ENV LANG=en_US.UTF-8 \
+    LANGUAGE=en_US:en \
+    LC_ALL=en_US.UTF-8
+
 RUN \
+  echo "**** locale ****" && \
+  apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y locales && \
+  locale-gen en_US.UTF-8 && \
+  update-locale LANG=en_US.UTF-8 && \
   echo "**** add icon ****" && \
   curl -o \
     /usr/share/selkies/www/icon.png \
