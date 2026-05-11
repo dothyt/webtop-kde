@@ -18,7 +18,10 @@ mkdir -p "${HOME}/.config/autostart" "${HOME}/.XDG" "${HOME}/.local/share/"
 chmod 700 "${HOME}/.XDG"
 touch "${HOME}/.local/share/user-places.xbel"
 
-# Background perm loop
+# Background perm loop. The PID gets reaped right before exec — otherwise the
+# subshell is orphaned to startplasma-x11 (an ELF that never wait()s on stray
+# children) and lingers as a zombie for the container's lifetime.
+PERM_FIX_PID=
 if [ ! -d $HOME/.config/kde.org ]; then
   (
     loop_end_time=$((SECONDS + 30))
@@ -27,6 +30,7 @@ if [ ! -d $HOME/.config/kde.org ]; then
         sleep .1
     done
   ) &
+  PERM_FIX_PID=$!
 fi
 
 # Create startup script if it does not exist (keep in sync with openbox)
@@ -40,6 +44,13 @@ if [ ! -f "${STARTUP_FILE}" ]; then
   echo "Type=Application" >> $STARTUP_FILE
   echo "X-KDE-AutostartScript=true" >> $STARTUP_FILE
   chmod +x $STARTUP_FILE
+fi
+
+# Reap the perm-fix subshell before exec so it isn't orphaned to
+# startplasma-x11 (which doesn't wait() on stray children).
+if [ -n "$PERM_FIX_PID" ]; then
+  kill "$PERM_FIX_PID" 2>/dev/null
+  wait "$PERM_FIX_PID" 2>/dev/null
 fi
 
 # Start DE
