@@ -1,6 +1,6 @@
 services:
   webtop:
-    image: ghcr.io/dothyt/webtop:ubuntu-kde
+    image: ghcr.io/dothyt/webtop:ubuntu-gnome
     container_name: webtop
     security_opt:
       - seccomp=unconfined

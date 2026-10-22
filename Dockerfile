@@ -8,7 +8,7 @@ LABEL maintainer="thelamer"
 ARG DEBIAN_FRONTEND="noninteractive"
 
 # title
-ENV TITLE="Ubuntu KDE" \
+ENV TITLE="Ubuntu GNOME" \
     NO_GAMEPAD=true
 
 # Disable libuv io_uring backend container-wide so VSCode's bundled
@@ -43,35 +43,45 @@ RUN \
   apt-get update && \
   DEBIAN_FRONTEND=noninteractive \
   apt-get install --no-install-recommends -y \
+    at-spi2-core \
     chromium \
-    dolphin \
-    gwenview \
-    kde-config-gtk-style \
-    kdialog \
-    kfind \
-    khotkeys \
-    kio-extras \
-    knewstuff-dialog \
-    konsole \
-    ksystemstats \
-    kubuntu-settings-desktop \
-    kubuntu-wallpapers \
-    kubuntu-web-shortcuts \
-    kwin-addons \
-    kwin-x11 \
-    kwrite \
-    plasma-desktop \
-    plasma-workspace \
-    qml-module-qt-labs-platform \
-    systemsettings && \
+    dconf-cli \
+    eog \
+    gnome-control-center \
+    gnome-shell-extension-appindicator \
+    gnome-shell-extension-desktop-icons-ng \
+    gnome-shell-extension-ubuntu-dock \
+    gnome-terminal \
+    gnome-text-editor \
+    nautilus \
+    ubuntu-session \
+    yaru-theme-gtk \
+    yaru-theme-icon \
+    zenity && \
   echo "**** application tweaks ****" && \
   sed -i \
     's#^Exec=.*#Exec=/usr/local/bin/wrapped-chromium#g' \
     /usr/share/applications/chromium.desktop && \
-  echo "**** kde tweaks ****" && \
+  echo "**** gnome tweaks ****" && \
+  # The base image runs xsettingsd as an s6 service (it only skips it
+  # for XFCE). gsd-xsettings is a RequiredComponent of the ubuntu
+  # session and exits if another XSETTINGS manager already owns the
+  # selection, which makes gnome-session show the "Oh no!" fail
+  # screen. Skip xsettingsd when GNOME is installed too.
   sed -i \
-    's/applications:org.kde.discover.desktop,/applications:org.kde.konsole.desktop,/g' \
-    /usr/share/plasma/plasmoids/org.kde.plasma.taskmanager/contents/config/main.xml && \
+    's#^if which xfce4-session#if which gnome-session > /dev/null 2>\&1 || which xfce4-session#' \
+    /etc/s6-overlay/s6-rc.d/svc-xsettingsd/run && \
+  grep -q 'which gnome-session' /etc/s6-overlay/s6-rc.d/svc-xsettingsd/run && \
+  # The base image bakes in an empty /run/systemd/seats from installing
+  # the systemd package. gnome-shell takes its existence to mean logind
+  # is running, then crashes on the missing org.freedesktop.login1.
+  rm -rf /run/systemd/seats /run/systemd/sessions /run/systemd/users && \
+  # gsd-power exits without logind + UPower, and as a RequiredComponent
+  # that drops the whole session onto the fail screen. Its job (dim,
+  # blank, suspend) is unwanted in a streamed container anyway.
+  sed -i 's/org.gnome.SettingsDaemon.Power;//' \
+    /usr/share/gnome-session/sessions/ubuntu.session && \
+  rm -f /etc/xdg/autostart/org.gnome.SettingsDaemon.Power.desktop && \
   echo "**** cleanup ****" && \
   apt-get autoclean && \
   rm -rf \
@@ -82,7 +92,7 @@ RUN \
     /tmp/*
 
 # ==== custom packages ====
-ENV SAL_USE_VCLPLUGIN=qt5
+ENV SAL_USE_VCLPLUGIN=gtk3
 RUN \
   echo "**** add microsoft repo for vscode ****" && \
   curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
@@ -98,7 +108,6 @@ RUN \
   DEBIAN_FRONTEND=noninteractive \
   apt-get install --no-install-recommends -y \
     adwaita-icon-theme \
-    breeze-icon-theme \
     code \
     fonts-liberation \
     fonts-noto-cjk \
@@ -115,17 +124,18 @@ RUN \
     mypaint-brushes \
     libreoffice-calc \
     libreoffice-impress \
-    libreoffice-qt5 \
-    libreoffice-style-breeze \
+    libreoffice-gtk3 \
+    libreoffice-style-yaru \
     libreoffice-writer \
     thunderbird \
     ubuntu-wallpapers \
     ubuntu-wallpapers-jammy \
     vlc && \
   echo "**** wire up CRIU-friendly wrappers for vscode + thunderbird ****" && \
+  # code >=1.143 ships com.microsoft.VSCode.desktop (was code.desktop).
   sed -i \
     's#^Exec=/usr/share/code/code#Exec=/usr/local/bin/wrapped-code#g' \
-    /usr/share/applications/code.desktop && \
+    /usr/share/applications/com.microsoft.VSCode.desktop && \
   sed -i \
     's#^Exec=thunderbird #Exec=/usr/local/bin/wrapped-thunderbird #g' \
     /usr/share/applications/thunderbird.desktop && \
@@ -149,8 +159,8 @@ RUN \
 
 # ==== xdotool for the bench (Agent-S / OSWorld actions) ====
 # pyautogui imports tkinter (~50MB) and the bench's stub workarounds
-# were brittle. The image runs kwin_x11 + Xvfb (an X11 session, not
-# Wayland), so we replace pyautogui with a tiny shim
+# were brittle. The image runs gnome-shell (mutter, X11) + Xvfb (an X11
+# session, not Wayland), so we replace pyautogui with a tiny shim
 # (root/usr/lib/python3/dist-packages/pyautogui.py) that drives
 # xdotool. xdotool talks to the X server via XTest — needs no
 # /dev/uinput, no daemon, no device passthrough.
@@ -173,9 +183,10 @@ RUN \
   printf '%s\n' \
     '#!/usr/bin/with-contenv bash' \
     'mkdir -p /config/Desktop' \
-    'for app in chromium code dolphin firefox gimp konsole \
+    'for app in chromium com.microsoft.VSCode firefox gimp \
                 libreoffice-calc libreoffice-impress libreoffice-writer \
-                org.kde.kwrite systemsettings thunderbird vlc; do' \
+                org.gnome.Nautilus org.gnome.Settings org.gnome.Terminal \
+                org.gnome.TextEditor thunderbird vlc; do' \
     '  src="/usr/share/applications/${app}.desktop"' \
     '  dst="/config/Desktop/${app}.desktop"' \
     '  if [ -f "$src" ] && [ ! -f "$dst" ]; then' \
@@ -189,6 +200,12 @@ RUN \
 
 # add local files
 COPY /root /
+
+# Compile the system-wide GNOME defaults shipped in
+# root/etc/dconf/db/local.d/ (no lock, idle, animations; wallpaper; dock
+# favorites). They only replace schema defaults — users and agents can
+# still change any of them with gsettings.
+RUN dconf update
 
 # ports and volumes
 EXPOSE 3000

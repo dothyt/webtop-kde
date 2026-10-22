@@ -1,13 +1,5 @@
 #!/bin/bash
 
-# Disable compositing and screen lock
-if [ ! -f $HOME/.config/kwinrc ]; then
-  kwriteconfig5 --file $HOME/.config/kwinrc --group Compositing --key Enabled false
-fi
-if [ ! -f $HOME/.config/kscreenlockerrc ]; then
-  kwriteconfig5 --file $HOME/.config/kscreenlockerrc --group Daemon --key Autolock false
-fi
-
 # Power related
 setterm blank 0
 setterm powerdown 0
@@ -16,22 +8,6 @@ setterm powerdown 0
 sudo rm -f /usr/share/dbus-1/system-services/org.freedesktop.UDisks2.service
 mkdir -p "${HOME}/.config/autostart" "${HOME}/.XDG" "${HOME}/.local/share/"
 chmod 700 "${HOME}/.XDG"
-touch "${HOME}/.local/share/user-places.xbel"
-
-# Background perm loop. The PID gets reaped right before exec — otherwise the
-# subshell is orphaned to startplasma-x11 (an ELF that never wait()s on stray
-# children) and lingers as a zombie for the container's lifetime.
-PERM_FIX_PID=
-if [ ! -d $HOME/.config/kde.org ]; then
-  (
-    loop_end_time=$((SECONDS + 30))
-    while [ $SECONDS -lt $loop_end_time ]; do
-        find "$HOME/.cache" "$HOME/.config" "$HOME/.local" -type f -perm 000 -exec chmod 644 {} + 2>/dev/null
-        sleep .1
-    done
-  ) &
-  PERM_FIX_PID=$!
-fi
 
 # Create startup script if it does not exist (keep in sync with openbox)
 STARTUP_FILE="${HOME}/.config/autostart/autostart.desktop"
@@ -42,18 +18,27 @@ if [ ! -f "${STARTUP_FILE}" ]; then
   echo "Name=autostart" >> $STARTUP_FILE
   echo "Path=" >> $STARTUP_FILE
   echo "Type=Application" >> $STARTUP_FILE
-  echo "X-KDE-AutostartScript=true" >> $STARTUP_FILE
+  echo "X-GNOME-Autostart-enabled=true" >> $STARTUP_FILE
   chmod +x $STARTUP_FILE
 fi
 
-# Reap the perm-fix subshell before exec so it isn't orphaned to
-# startplasma-x11 (which doesn't wait() on stray children).
-if [ -n "$PERM_FIX_PID" ]; then
-  kill "$PERM_FIX_PID" 2>/dev/null
-  wait "$PERM_FIX_PID" 2>/dev/null
-fi
+# Session identity normally set by GDM.
+export XDG_SESSION_TYPE=x11
+export XDG_CURRENT_DESKTOP=ubuntu:GNOME
+export XDG_SESSION_DESKTOP=ubuntu
+export DESKTOP_SESSION=ubuntu
+export GNOME_SHELL_SESSION_MODE=ubuntu
 
-# Start DE
+# Start DE. There is no systemd here (s6-overlay is PID 1), and
+# gnome-session 46 only hands the session to `systemd --user` targets
+# when started with --systemd-service. Without it, gnome-session uses
+# its builtin manager and launches gnome-shell plus the gsd-* daemons
+# itself from /etc/xdg/autostart. GNOME 49+ drops the builtin manager
+# (and the X11 session), so this only works while the base stays on
+# noble.
+# gnome-shell runs as an X11 compositor on Xwayland inside the Selkies
+# Wayland compositor (a native Wayland gnome-shell would need logind).
 WAYLAND_DISPLAY=wayland-1 Xwayland :1 &
 sleep 2
-exec dbus-launch --exit-with-session /usr/bin/startplasma-x11 > /dev/null 2>&1
+exec dbus-launch --exit-with-session \
+  /usr/bin/gnome-session --session=ubuntu > "${HOME}/.xsession-errors" 2>&1

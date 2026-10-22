@@ -7,7 +7,7 @@ generator code can stay unchanged.
 
 xdotool sends events to the X server via the XTest extension. It
 needs no special device passthrough (no /dev/uinput, no /dev/input)
-and works against the existing kwin_x11 + Xvfb session that Selkies
+and works against the existing gnome-shell (X11) + Xvfb session that Selkies
 streams.
 
 Required at runtime: DISPLAY=:1 (and XAUTHORITY=/config/.Xauthority

@@ -1,0 +1,16 @@
+#!/usr/bin/with-contenv bash
+# Per-user GNOME state that has to exist before the session starts.
+# System-wide defaults (wallpaper, dock, no lock/idle) live in
+# /etc/dconf/db/local.d/ instead; this is only for things dconf can't
+# express. /config is tmpfs in the bench launch flags, so this runs on
+# every fresh container start.
+
+set -euo pipefail
+
+# gnome-shell pops a "Screen Lock disabled — requires the GNOME display
+# manager" notification on login whenever GDM isn't present, unless
+# this marker exists. It steals focus from whatever the agent is doing.
+mkdir -p /config/.local/share/gnome-shell
+touch /config/.local/share/gnome-shell/lock-warning-shown
+
+chown -R abc:abc /config/.local

@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# trust-desktop-launchers: mark the .desktop files seeded into ~/Desktop
+# (by /custom-cont-init.d/10-seed-desktop) as trusted so the desktop
+# icons extension (DING) shows them by name and launches them on
+# double-click instead of an "Untrusted Desktop File" error.
+#
+# DING reads gvfs metadata (metadata::trusted), which only the
+# session's gvfsd-metadata can write, so this runs from
+# /etc/xdg/autostart inside the GNOME session rather than from
+# cont-init. DING picks the change up live.
+#
+DESKTOP_DIR="$(xdg-user-dir DESKTOP 2>/dev/null || echo "${HOME}/Desktop")"
+for f in "${DESKTOP_DIR}"/*.desktop; do
+  [ -f "$f" ] || continue
+  gio set -t string "$f" metadata::trusted true
+done
