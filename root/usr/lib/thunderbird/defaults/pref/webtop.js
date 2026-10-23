@@ -1,0 +1,12 @@
+// webtop: start Thunderbird straight into the main window on a fresh
+// profile -- no account setup, start page, default-client prompt,
+// privacy/telemetry bar or donation tab to dismiss first.
+pref("mail.provider.suppress_dialog_on_startup", true);
+pref("mailnews.start_page.enabled", false);
+pref("mail.shell.checkDefaultClient", false);
+pref("mail.rights.override", true);
+pref("mail.rights.version", 1);
+pref("app.donation.eoy.version.viewed", 999);
+pref("datareporting.policy.dataSubmissionEnabled", false);
+pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
+pref("toolkit.telemetry.reportingpolicy.firstRun", false);

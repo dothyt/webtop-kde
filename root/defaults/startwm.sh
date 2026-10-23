@@ -36,12 +36,9 @@ export XDG_SESSION_DESKTOP=ubuntu
 export DESKTOP_SESSION=ubuntu
 export GNOME_SHELL_SESSION_MODE=ubuntu
 
-# Start DE. There is no systemd here (s6-overlay is PID 1), and
-# gnome-session 46 only hands the session to `systemd --user` targets
-# when started with --systemd-service. Without it, gnome-session uses
-# its builtin manager and launches gnome-shell plus the gsd-* daemons
-# itself from /etc/xdg/autostart. GNOME 49+ drops the builtin manager
-# (and the X11 session), so this only works while the base stays on
-# noble.
+# Start DE. There is no systemd here (s6-overlay is PID 1), so run
+# gnome-session in --builtin mode: it launches gnome-shell and the
+# gsd-* daemons itself from /etc/xdg/autostart instead of handing the
+# session to `systemd --user` targets.
 exec dbus-launch --exit-with-session \
-  /usr/bin/gnome-session --session=ubuntu > "${HOME}/.xsession-errors" 2>&1
+  /usr/bin/gnome-session --builtin --session=ubuntu > "${HOME}/.xsession-errors" 2>&1

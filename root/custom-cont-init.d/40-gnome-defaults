@@ -13,4 +13,10 @@ set -euo pipefail
 mkdir -p /config/.local/share/gnome-shell
 touch /config/.local/share/gnome-shell/lock-warning-shown
 
+# Something in the jammy base's init runs as root with HOME=/config and
+# leaves a root-owned, mode 700 /config/.cache behind, so dconf,
+# fontconfig and the browsers can't write their caches. Claim it first.
+mkdir -p /config/.cache
+
 chown -R abc:abc /config/.local
+chown abc:abc /config/.cache

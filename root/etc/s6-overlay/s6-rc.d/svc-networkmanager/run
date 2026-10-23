@@ -1,0 +1,7 @@
+#!/usr/bin/with-contenv bash
+
+# NetworkManager on the system bus, so GNOME Settings' Network panel
+# and nmcli work as on the OSWorld VM. It only adopts the container's
+# existing interface ("connected (externally)") and never reconfigures
+# it; see /etc/NetworkManager/conf.d/90-webtop.conf.
+exec NetworkManager --no-daemon

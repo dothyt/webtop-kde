@@ -12,7 +12,10 @@
 # See end2end-checkpoints/VSCODE_DUMP_RESTORE.md.
 #
 export UV_USE_IO_URING=0
+# --force-renderer-accessibility: Electron never builds its AT-SPI
+# tree on its own on Linux, so the bench's a11y tree would be empty.
 exec /usr/share/code/code \
     --disable-features=IOUring,IoUring \
     --password-store=basic \
+    --force-renderer-accessibility \
     "$@"

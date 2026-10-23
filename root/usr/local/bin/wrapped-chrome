@@ -1,0 +1,21 @@
+#! /bin/bash
+
+BIN=/usr/bin/google-chrome-stable
+
+# Cleanup
+if ! pgrep chrome > /dev/null;then
+  rm -f $HOME/.config/google-chrome/Singleton*
+fi
+
+# --force-renderer-accessibility: Chrome only builds its AT-SPI tree
+# when it detects an assistive tool, which it doesn't reliably here.
+# --no-first-run: a fresh profile otherwise opens a "Google Chrome and
+# ChromeOS Additional Terms of Service" window instead of a browser
+# window (the OSWorld VM's profile is already past first run).
+${BIN} --password-store=basic --no-sandbox --test-type --no-first-run --no-default-browser-check --force-renderer-accessibility "$@"
+# Run normally on privved containers or modified un non priv
+# if grep -q 'Seccomp:.0' /proc/1/status; then
+#  ${BIN} --password-store=basic "$@"
+# else
+#  ${BIN} --password-store=basic --no-sandbox --test-type "$@"
+# fi

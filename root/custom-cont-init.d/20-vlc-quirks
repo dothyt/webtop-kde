@@ -33,6 +33,6 @@ fi
 # The old KWin rule that pinned VLC's initial geometry is gone: mutter
 # has no window rules. What made VLC cover the desktop was
 # auto-maximize on near-screen-sized windows, which is switched off in
-# /etc/dconf/db/local.d/00-os4agent (org.gnome.mutter auto-maximize).
+# /etc/dconf/db/local.d/00-webtop (org.gnome.mutter auto-maximize).
 
 chown -R abc:abc /config/.config

@@ -3,7 +3,7 @@ name: Build and push image
 on:
   push:
     branches:
-      - ubuntu-gnome
+      - ubuntu-gnome42
     paths-ignore:
       - 'README.md'
       - 'LICENSE'
@@ -41,8 +41,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=ubuntu-gnome
-            type=sha,prefix=ubuntu-gnome-,format=short
+            type=raw,value=ubuntu-gnome42
+            type=sha,prefix=ubuntu-gnome42-,format=short
 
       - name: Build and push
         uses: docker/build-push-action@v6

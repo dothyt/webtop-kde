@@ -1,0 +1,45 @@
+#!/usr/bin/with-contenv bash
+# Pre-seed per-user app state so a fresh profile opens straight to the
+# app's main window, with no onboarding to click through first. Neither
+# app reads a system-wide default for these, and /config is tmpfs in the
+# bench, so this runs on every fresh start. (LibreOffice and Thunderbird
+# get theirs system-wide: /etc/libreoffice/registry/webtop.xcd and
+# /usr/lib/thunderbird/defaults/pref/webtop.js.)
+#
+# Idempotent: each file is only written if it isn't already present.
+
+set -euo pipefail
+
+# VS Code: no Welcome tab, no "Sign in to use GitHub Copilot" onboarding
+# dialog, and no workspace-trust prompt (the last three are the OSWorld
+# VM's own settings.json).
+CODE_USER=/config/.config/Code/User
+if [ ! -f "${CODE_USER}/settings.json" ]; then
+    mkdir -p "${CODE_USER}"
+    cat > "${CODE_USER}/settings.json" <<'JSON'
+{
+    "workbench.startupEditor": "none",
+    "workbench.welcomePage.walkthroughs.openOnInstall": false,
+    "chat.disableAIFeatures": true,
+    "security.workspace.trust.enabled": false,
+    "security.workspace.trust.startupPrompt": "never",
+    "security.workspace.trust.emptyWindow": false
+}
+JSON
+fi
+
+# Chrome: wrapped-chrome's --no-first-run already skips the welcome and
+# terms pages, but the toolbar avatar still pops a "Sign in to Chrome?"
+# pill. Its only off switch short of a policy (which would brand the
+# browser "managed by your organization") is the profile's shown/used
+# counters, so start them past the limit. Chrome merges the rest of the
+# profile in around this.
+CHROME_DEFAULT=/config/.config/google-chrome/Default
+if [ ! -f "${CHROME_DEFAULT}/Preferences" ]; then
+    mkdir -p "${CHROME_DEFAULT}"
+    cat > "${CHROME_DEFAULT}/Preferences" <<'JSON'
+{"signin":{"avatar_button_promo_dict":{"AvatarButtonSigninPromoShownCount":99,"AvatarButtonSigninPromoUsedCount":99}}}
+JSON
+fi
+
+chown -R abc:abc /config/.config

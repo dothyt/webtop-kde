@@ -1,0 +1,4 @@
+# gsd-a11y-settings writes toolkit-accessibility=false at login whenever
+# no screen reader / OSK / magnifier is enabled, which would hide most
+# apps from the AT-SPI tree. Lock it so the system default (true) holds.
+/org/gnome/desktop/interface/toolkit-accessibility

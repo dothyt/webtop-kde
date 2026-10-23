@@ -1,0 +1,18 @@
+#!/usr/bin/with-contenv bash
+
+# bail early on xfce/gnome based systems or wayland. gsd-xsettings is a
+# RequiredComponent of the GNOME session and exits if another XSETTINGS
+# manager already owns the selection (-> "Oh no!" fail screen).
+if which xfce4-session > /dev/null 2>&1 || which gnome-session > /dev/null 2>&1 || [[ "${PIXELFLUX_WAYLAND,,}" == "true" ]]; then
+  sleep infinity
+fi
+
+# create default xsettings
+if [ ! -f "${HOME}/.xsettingsd" ]; then
+  echo "Xft/DPI 98304" > "${HOME}/.xsettingsd"
+fi
+chown abc:abc "${HOME}/.xsettingsd"
+
+# run
+exec s6-setuidgid abc \
+  xsettingsd

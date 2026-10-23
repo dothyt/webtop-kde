@@ -1,4 +1,4 @@
-# System-wide GNOME defaults for the os4agent desktop (replaces the old
+# System-wide GNOME defaults for the webtop desktop (replaces the old
 # captured plasma.tar.gz). Compiled into /etc/dconf/db/local by
 # `dconf update` at build time. Nothing here is locked, so per-user
 # gsettings writes still win.
@@ -21,21 +21,23 @@ sleep-inactive-ac-type='nothing'
 sleep-inactive-battery-type='nothing'
 
 # Software rendering (llvmpipe under Xvfb): skip animations so
-# screenshots aren't taken mid-transition.
+# screenshots aren't taken mid-transition. toolkit-accessibility flips
+# org.a11y.Status.IsEnabled, so apps that only register on the AT-SPI
+# bus when an assistive tool is present (Qt, Mozilla) expose their
+# accessibility tree for the bench, and gsd-xsettings tells GTK2 apps
+# (GIMP 2.10) to load gail:atk-bridge.
 [org/gnome/desktop/interface]
 enable-animations=false
+toolkit-accessibility=true
 
 # Don't auto-maximize windows that open close to screen size (VLC with
 # the spec's argv otherwise ends up covering the desktop icons).
 [org/gnome/mutter]
 auto-maximize=false
 
-[org/gnome/desktop/background]
-picture-uri='file:///usr/share/backgrounds/Jammy-Jellyfish-Purple.jpg'
-picture-uri-dark='file:///usr/share/backgrounds/Jammy-Jellyfish-Purple.jpg'
-picture-options='zoom'
-
-# Dock launchers, same set/order as the old Plasma task manager.
+# Dock launchers: the OSWorld VM's favorites, same desktop ids, same
+# order. Ubuntu Software is the snap store there; here the same id
+# launches gnome-software (see the Dockerfile).
 [org/gnome/shell]
-favorite-apps=['chromium.desktop', 'com.microsoft.VSCode.desktop', 'vlc.desktop', 'org.gnome.TextEditor.desktop', 'libreoffice-writer.desktop', 'libreoffice-calc.desktop', 'libreoffice-impress.desktop', 'gimp.desktop', 'thunderbird.desktop', 'org.gnome.Settings.desktop', 'org.gnome.Nautilus.desktop', 'org.gnome.Terminal.desktop']
+favorite-apps=['google-chrome.desktop', 'thunderbird.desktop', 'code.desktop', 'vlc.desktop', 'libreoffice-writer.desktop', 'libreoffice-calc.desktop', 'libreoffice-impress.desktop', 'gimp.desktop', 'org.gnome.Nautilus.desktop', 'snap-store_ubuntu-software.desktop', 'yelp.desktop']
 welcome-dialog-last-shown-version='999'
